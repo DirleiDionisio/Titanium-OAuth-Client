@@ -28,22 +28,30 @@
 Ti.include('sha1.js');
 Ti.include('oauth.js');
 
-var TitaniumOAuth = function(ck, cs) {
+var TitaniumOAuth = function(params) {
+	// params:
+	// consumerKey
+	// consumerSecret
+	// signatureMethod (optional)
+	// requestTokenURL
+	// userAuthorizationURL
+	// accessTokenURL
+	// oauthVersion (optional)
 
 	var self = this;
-	var currentWin = Ti.UI.currentWindow;
+	//var currentWin = Ti.UI.currentWindow; -> unused
 	var authWebView = null;
 	var oauthWin = null;
 
 	var consumer = {
-	    consumerKey:      ck,
-	    consumerSecret:   cs,
+	    consumerKey:      params.consumerKey,
+	    consumerSecret:   params.consumerSecret,
 	    serviceProvider: {
-	        signatureMethod:     'HMAC-SHA1',
-	        requestTokenURL:     'https://twitter.com/oauth/request_token',
-	        userAuthorizationURL:'https://twitter.com/oauth/authorize',
-	        accessTokenURL:      'https://twitter.com/oauth/access_token',
-			oauthVersion:        '1.0'
+	        signatureMethod:     params.signatureMethod || 'HMAC-SHA1',
+	        requestTokenURL:     params.requestTokenURL,
+	        userAuthorizationURL:params.userAuthorizationURL,
+	        accessTokenURL:      params.accessTokenURL,
+			oauthVersion:        params.oauthVersion || '1.0'
 	    }
 	};
 	
