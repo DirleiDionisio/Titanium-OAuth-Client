@@ -80,7 +80,7 @@ OAuth.setProperties = function setProperties(into, from) {
         }
     }
     return into;
-}
+};
 
 OAuth.setProperties(OAuth, // utility functions
 {
@@ -299,7 +299,7 @@ OAuth.setProperties(OAuth, // utility functions
     }
 ,
     /** Correct the time using a parameter from the URL from which the last script was loaded. */
-    correctTimestampFromSrc: function correctTimestampFromSrc(parameterName) {
+    /*correctTimestampFromSrc: function correctTimestampFromSrc(parameterName) {
         parameterName = parameterName || "oauth_timestamp";
         var scripts = document.getElementsByTagName('script');
         if (scripts == null || !scripts.length) return;
@@ -312,17 +312,17 @@ OAuth.setProperties(OAuth, // utility functions
         if (t == null) return;
         OAuth.correctTimestamp(t);
     }
-,
+,*/
     /** Generate timestamps starting with the given value. */
-    correctTimestamp: function correctTimestamp(timestamp) {
+   /*correctTimestamp: function correctTimestamp(timestamp) {
         OAuth.timeCorrectionMsec = (timestamp * 1000) - (new Date()).getTime();
     }
-,
+,*/
     /** The difference between the correct time and my clock. */
-    timeCorrectionMsec: 0
-,
+    /*timeCorrectionMsec: 0
+,*/
     timestamp: function timestamp() {
-        var t = (new Date()).getTime() + OAuth.timeCorrectionMsec;
+        var t = (new Date()).getTime()/* + OAuth.timeCorrectionMsec*/;
         return Math.floor(t / 1000);
     }
 ,
@@ -355,7 +355,7 @@ OAuth.declareClass = function declareClass(parent, name, newConstructor) {
         }
     }
     return newConstructor;
-}
+};
 
 /** An abstract algorithm for signing messages. */
 OAuth.declareClass(OAuth, "SignatureMethod", function OAuthSignatureMethod(){});
@@ -545,7 +545,7 @@ OAuth.SignatureMethod.registerMethodClass(["HMAC-SHA1", "HMAC-SHA1-Accessor"],
         }
     ));
 
-try {
+/*try {
     OAuth.correctTimestampFromSrc();
 } catch(e) {
-}
+}*/
