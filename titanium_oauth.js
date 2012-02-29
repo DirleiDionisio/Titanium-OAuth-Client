@@ -1,3 +1,4 @@
+/*globals httpRequest*/
 /*
 * Titanium OAuth Client
 *
@@ -27,6 +28,7 @@
 
 Ti.include('sha1.js');
 Ti.include('oauth.js');
+Ti.include('http-request.js');
 
 var TitaniumOAuth = function(params) {
 	// params:
@@ -65,14 +67,17 @@ var TitaniumOAuth = function(params) {
 	};
 	
 	// Get Authorization PIN
-	var getPIN = function(e) {
-		var pin = params.getPin(authWebView);
-		if (pin) {
-			self.accessToken(pin);
-			if(oauthWin) {
-				oauthWin.close();
-			}				
-		}
+	var getPIN = function(callback) {
+		return function(e) {
+			var pin = params.getPin(authWebView);
+			if (pin) {
+				Ti.API.info('#PIN is: ' + pin);
+				self.accessToken(pin, callback);
+				if(oauthWin) {
+					oauthWin.close();
+				}				
+			}
+		};
 	};
 	/*var getPIN = function(e)
 	{
@@ -90,6 +95,17 @@ var TitaniumOAuth = function(params) {
 			}
 		}
 	};*/
+	
+	var defaultHttpErrorHandler = function(e) {
+		Ti.UI.createAlertDialog({
+            title: 'Error',
+            message: e.error || e.response
+        }).show();
+		
+		if (e.error) {
+			self.logout();
+		}
+	};
 	
 	// Request Token
 	this.requestToken = function(callback){
@@ -122,44 +138,34 @@ var TitaniumOAuth = function(params) {
 		
 		var finalUrl = OAuth.addToURL(message.action, message.parameters);
 
-		var xhr = Titanium.Network.createHTTPClient();
-		xhr.onload = function()
-		{
-			
-			if (!this.responseText.match(/oauth_token=([^&]+)&/)){
-				self.logout();
-			}
-			
-			// Set Tokens
-			Ti.App.Properties.setString('oauthToken', this.responseText.match(/oauth_token=([^&]+)/)[1]);
-			Ti.App.Properties.setString('oauthTokenSecret', this.responseText.match(/oauth_token_secret=([^&]+)/)[1]);
-			
-			// Access Token Secret
-			accessor.tokenSecret = Ti.App.Properties.getString('accessTokenSecret');
-			
-			// Verify if we have an access token if we dont show auth webview
-			if (Ti.App.Properties.getString('accessToken') == null && 
-					Ti.App.Properties.getString('accessTokenSecret') == null) {
-				self.oauthWebView({
-					url: consumer.serviceProvider.userAuthorizationURL + '?' + this.responseText
-				});
-			} else {
-				callback();
-			}
-			
-		};
-		xhr.onerror = function(e) {
-			Ti.UI.createAlertDialog({
-                title: 'Service Unavailable',
-                message: 'Service unavailable please try again later.'
-            }).show();
-			
-			// Logout
-			self.logout();
-		};
-		xhr.open('GET', finalUrl);
-		xhr.send();
-	
+		httpRequest({
+			method: 'GET',
+			url: finalUrl,
+			success: function(response) {
+				if (!response.match(/oauth_token=([^&]+)&/)){
+					self.logout();
+				}
+				
+				// Set Tokens
+				Ti.App.Properties.setString('oauthToken', response.match(/oauth_token=([^&]+)/)[1]);
+				Ti.App.Properties.setString('oauthTokenSecret', response.match(/oauth_token_secret=([^&]+)/)[1]);
+				
+				// Access Token Secret
+				accessor.tokenSecret = Ti.App.Properties.getString('accessTokenSecret');
+				
+				// Verify if we have an access token if we dont show auth webview
+				if (Ti.App.Properties.getString('accessToken') == null && 
+						Ti.App.Properties.getString('accessTokenSecret') == null) {
+					self.oauthWebView({
+						url: consumer.serviceProvider.userAuthorizationURL + '?' + response,
+						callback: callback
+					});
+				} else {
+					callback();
+				}
+			},
+			error: defaultHttpErrorHandler
+		});
 	};
 	
 	// Access Token
@@ -183,33 +189,26 @@ var TitaniumOAuth = function(params) {
 		
 	    var finalUrl = OAuth.addToURL(message.action, message.parameters);
 
-		var xhr = Titanium.Network.createHTTPClient();
-		xhr.onload = function()
-		{
-			
-			if (!this.responseText.match(/oauth_token=([^&]+)&/)){
-				self.logout();
-			}
-			
-			Ti.App.Properties.setString('accessToken', this.responseText.match(/oauth_token=([^&]+)&/)[1]);
-			Ti.App.Properties.setString('accessTokenSecret', this.responseText.match(/oauth_token_secret=([^&]+)&/)[1]);	
-
-			// Login
-			self.dispatch('login');
-		};
-		xhr.onerror = function(e) {
-
-			Ti.UI.createAlertDialog({
-                title: 'Service Unavailable',
-                message: 'Service unavailable please try again later.'
-            }).show();
-			
-			// Logout
-			self.logout();
-		};
-		xhr.open('GET', finalUrl);
-		xhr.send();
-
+		httpRequest({
+			method: 'GET', 
+			url: finalUrl,
+			success: function(response) {
+				if (!response.match(/oauth_token=([^&]+)&/)){
+					self.logout();
+				}
+				
+				Ti.App.Properties.setString('accessToken', response.match(/oauth_token=([^&]+)&/)[1]);
+				Ti.App.Properties.setString('accessTokenSecret', response.match(/oauth_token_secret=([^&]+)&/)[1]);	
+	
+				// Login
+				self.dispatch('login');
+				
+				if (typeof callback === 'function') {
+					callback();
+				}
+			},
+			error: defaultHttpErrorHandler
+		});
 	};
 	
 	// Show Authorization Web View
@@ -229,11 +228,12 @@ var TitaniumOAuth = function(params) {
         });
 
 		// WebView
+		Ti.API.info('#authorization window. url: ' + params.url);
 	    authWebView = Ti.UI.createWebView({
 				url: params.url
 			});
 		
-		authWebView.addEventListener('load', getPIN);
+		authWebView.addEventListener('load', getPIN(params.callback));
 	    win.add(authWebView);
 		
 		// Remove window button
@@ -314,29 +314,15 @@ var TitaniumOAuth = function(params) {
 
 		var finalUrl = OAuth.addToURL(message.action, message.parameters);
 
-		var xhr = Titanium.Network.createHTTPClient({
-			timeout: 200000
+		httpRequest({
+			method: options.method, 
+			url: finalUrl,
+			async: false,
+			success: function(response) {
+				callback(response);
+			},
+			error: defaultHttpErrorHandler
 		});
-		xhr.onload = function() {
-			callback(this.responseText);
-		};
-		xhr.onerror = function(e) {
-
-			if (e.error) {
-				Ti.UI.createAlertDialog({
-					title: 'Service Unavailable',
-					message: 'An error ocurred while making a request.'
-				}).show();
-	
-				// Logout
-				self.dispatch('logout');
-			} else {
-				callback(this.responseText);
-			}
-		};
-		xhr.open(options.method, finalUrl, false);
-		xhr.send();
-		
 	};
 	
 	this.logout = function() {
